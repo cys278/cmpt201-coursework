@@ -1,0 +1,46 @@
+#define _POSIX_C_SOURCE 200809L
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main() {
+  char *line = NULL; // getline() will allocate/resize this
+  size_t cap = 0;    // current capacity of the buffer
+  ssize_t len = 0;   // number of chars read (when error will get -1)
+
+  // Prompt
+  printf(" Please Enter Some Text Here: ");
+  fflush(stdout);
+
+  // Read a full line from stdin
+  len = getline(&line, &cap, stdin);
+
+  if (len < 0) { // Error or EOF without any chars
+    perror("getline");
+    free(line);
+    return 1;
+  }
+
+  // Strip the trailing newline so that tokens don't include it
+  if (len > 0 && line[len - 1] == '\n') {
+    line[len - 1] = '\0';
+    len--;
+  }
+
+  puts("Tokens:");
+
+  // Tokenize on space only
+  const char *delim = " ";
+  char *saveptr = NULL; // Progress pointer that strtok_r updates
+
+  // First Call: pass the string buffer
+  char *tok = strtok_r(line, delim, &saveptr);
+  while (tok != NULL) {
+    printf(" %s\n", tok);
+    // Subsequent Calls: pass NULL to continue where left off
+    tok = strtok_r(NULL, delim, &saveptr);
+  }
+  free(line);
+  return 0;
+}
