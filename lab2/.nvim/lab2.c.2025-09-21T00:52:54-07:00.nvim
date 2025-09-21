@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <unistd.h>
 
 int main(void) {
   char input[256];
@@ -13,20 +13,21 @@ int main(void) {
       break;
     }
     input[strcspn(input, "\n")] = '\0'; // strip newline
-    pid_t pid = fork();
-    if (pid < 0) {
+    pid_t pid=fork(); 
+    if (pid<0){
       perror("fork");
       continue;
     }
-    if (pid == 0) {
+    if(pid==0){
       // Child Process
-      execl(input, input, (char *)NULL);
-      perror("Exec failure"); // only runs if execl fails
+      execl(input,input,(char *)NULL);
+      perror("Exec Failure"); // only runs if execl fails
       _exit(127);
-    } else {
-      // Parent wiats
+    }
+    else{
+      //Parent wiats
       int status;
-      waitpid(pid, &status, 0);
+      waitpid(pid, &status,0);
     }
   }
   return 0;
