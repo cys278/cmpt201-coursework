@@ -1,0 +1,51 @@
+
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+
+#define HISTORY_SIZE 5
+
+int main(){
+  char *history[HISTORY_SIZE] = {NULL};
+  int count =0; // number of stored lines
+  int next =0;  // index to insert next line
+
+  char *line=NULL;
+  size_t len=0;
+  while(1){
+    printf("Enter input: " );
+    ssize_t read = getline(&line,&len,stdin);
+    if(read==-1) break; //EOF or error
+    
+    // remove newline
+    if(read >0 && line(read-1)=='\n'){
+      line[read-1]='\0';
+    }
+
+    if(strcmp(line,"print")==0){
+      // print stored history in order
+      int start = (next-count+HISTORY_SIZE)%HISTORY_SIZE;
+      for(int i=0; i<count;i++){
+        int idx = (start+i) % HISTORY_SIZE;
+        printf("%s\n",history[idx]);
+      }
+    }else{
+      //store new line in history
+      if(history[next]!=NULL){
+        free(history[next]);
+      }
+      history[next]=strdup(line);
+      next = (next+1)% HISTORY_SIZE;
+      if(count<HISTORY_SIZE) count++;
+    }
+  }
+  //cleanup
+  for(int i=0; i<HISTORY_SIZE;i++){
+    free(history[i]);
+  }
+  free(line);
+  return 0;
+}
+
