@@ -1,0 +1,50 @@
+#define _DEFAULT_SOURCE
+#include <unistd.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define EXTRA 256
+#define BSZ 128
+#define BUF 128
+
+struct header {uint64_t size; struct header *next;};
+
+static void w1(int fd,const char *b, size_t n){while(n){ssize_t k=write(fd,b,n); if(k<0)_exit(2);
+  b+=k; n-=k;}}
+
+static void die(const char *m){char b[BUF]; int n=snprintf(b,sizeof b, "%s: %s\n",m,strerror(errno));
+  if(n>0) w1(STDERR_FILENO,b,(size_t)n); _exit(1);}
+static void pout(const char *fmt,const void *p, size_t sz){
+  char b[BUF];int n=(sz==sizeof(uint64_t))
+    ? snprintf(b,sizeof b,fmt, *(const unsigned long long*)p)
+    :snprintf(b,sizeof b,fmt,*(void*const*)p);
+  if(n<0) die("snprintf"); w1(STDOUT_FILENO,b,(size_t)n);
+}
+
+int main(void){
+  if(sbrk(0)==(void*)-1) die("sbrk(0)");
+  void *r= sbrk(EXTRA); if (r==(void*)-1) die("sbrk(256)");
+  struct header *b1= (struct header*)r;
+  struct header *b2=(struct header*)((char*)r +BSZ);
+  b1->size=BSZ; b1->next=NULL;
+  size_t dlen=BSZ-sizeof *b1;
+  unsigned char *d1=(unsigned char *)(b1+1), *d2=(unsigned char*)(b2+1);
+  memset(d1,0,dlen); memset(d2,1,dlen);
+  pout("first block: %p\n",(void*)&b1,sizeof b1);
+  pout("second block: %p\n",(void*)&b2, sizeof b2);
+  pout("first block size: %llu\n",(void*)&b1->size, sizeof b1->size);
+  pout("first block next: %p\n",(void*)&b1->next, sizeof b1->next);
+  pout("second block size: %llu\n",(void*)&b2->size,sizeof b2->size);
+  pout("second block next: %p\n",(void*)&b2->next,sizeof b2->next);
+
+  char line[16];
+  for(size_t i=0; i<dlen;i++){int n=snprintf(line,sizeof line, "%u\n",(unsigned)d1[i]); if(n<0) die("snprintf"); w1(STDOUT_FILENO,line,(size_t)n);}
+  for(size_t i=0;i<dlen;i++){int n=snprintf(line,sizeof line, "%u\n",(unsigned)d2[i]);if(n<0) die("snprintf"); w1(STDOUT_FILENO, line,(size_t)n);}
+  return 0;
+}
+
+
