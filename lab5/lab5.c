@@ -1,0 +1,145 @@
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+// ------ Struct Definition ------
+struct header {
+  uint64_t size;
+  struct header *next;
+  int id;
+};
+
+// ------ Helper Function ------
+void initialize_block(struct header *block, uint64_t size, struct header *next,
+                      int id) {
+  block->size = size;
+  block->next = next;
+  block->id = id;
+}
+
+// ------ Allocation Algo ------
+// First Fit
+
+int find_first_fit(struct header *free_list_ptr, uint64_t size) {
+  struct header *curr = free_list_ptr;
+  while (curr != NULL) {
+    if (curr->size >= size) {
+      return curr->id; // first block large enough
+    }
+    curr = curr->next;
+  }
+  return -1; // not found
+}
+
+// Best Fit
+int find_best_fit(struct header *free_list_ptr, uint64_t size) {
+  struct header *curr = free_list_ptr;
+  int best_fit_id = -1;
+  uint64_t best_fit_size = UINT64_MAX;
+  while (curr != NULL) {
+    if (curr->size >= size && curr->size < best_fit_size) {
+      best_fit_size = curr->size;
+      best_fit_id = curr->id;
+    }
+    curr = curr->next;
+  }
+  return best_fit_id;
+}
+
+// Worst Fit
+
+int find_worst_fit(struct header *free_list_ptr, uint64_t size) {
+  struct header *curr = free_list_ptr;
+  int worst_fit_id = -1;
+  uint64_t worst_fit_size = 0;
+  while (curr != NULL) {
+    if (curr->size >= size && curr->size > worst_fit_size) {
+      worst_fit_size = curr->size;
+      worst_fit_id = curr->id;
+    }
+    curr = curr->next;
+  }
+  return worst_fit_id;
+}
+
+// ------ Main ------
+int main(void) {
+  struct header *free_block1 = (struct header *)malloc(sizeof(struct header));
+  struct header *free_block2 = (struct header *)malloc(sizeof(struct header));
+  struct header *free_block3 = (struct header *)malloc(sizeof(struct header));
+  struct header *free_block4 = (struct header *)malloc(sizeof(struct header));
+  struct header *free_block5 = (struct header *)malloc(sizeof(struct header));
+
+  initialize_block(free_block1, 6, free_block2, 1);
+  initialize_block(free_block2, 12, free_block3, 2);
+  initialize_block(free_block3, 24, free_block4, 3);
+  initialize_block(free_block4, 8, free_block5, 4);
+  initialize_block(free_block5, 4, NULL, 5);
+  struct header *free_list_ptr = free_block1;
+
+  int first_fit_id = find_first_fit(free_list_ptr, 7);
+  int best_fit_id = find_best_fit(free_list_ptr, 7);
+  int worst_fit_id = find_worst_fit(free_list_ptr, 7);
+
+  printf("The ID for the First-Fit algorithm is: %d\n", first_fit_id);
+  printf("The ID for the Best-Fit algorithm is: %d\n", best_fit_id);
+  printf("The ID for the Worst-Fit algorithm is: %d\n", worst_fit_id);
+
+  free(free_block1);
+  free(free_block2);
+  free(free_block3);
+  free(free_block4);
+
+  return 0;
+}
+
+/*
+---------
+Part 2: Coalescing Contiguous Free Blocks (Pseudo-code)
+---------
+
+Goal:
+When a block (e.g., z) is freed, merge it with any neighbouring
+free blocks that are contiguous in memory
+
+Algorithm (for a singly linked lisr of free blocks):
+
+1. Input:
+        head - pointer to start of free list
+        new_free - pointer to newly freed block
+2. If the free list is empty
+        head =new_free
+        return
+3. Find where to insert new_free so the list stays sorted:
+        prev= NULL
+        curr= head
+        while (curr != NULL and curr < new_free)
+          prev=curr
+          curr= curr->next
+
+        // Insert new_free between prev and curr
+        new_free->next=curr
+        if(prev != NULL)
+          prev -> next = new_free
+        else
+          head = new_free
+
+
+4. Coalesce with previous block (if adjacent):
+        if (prev != NULL and address(prev) + size(prev) == address(new_free)):
+          prev->size += new_free->size
+          prev->next = new_free->next
+          new_free=prev // merged block now prev
+
+
+
+
+5. Coalesce with next block (if adjacent):
+        if (new_free->next != NULL and
+address(new_free)+size(new_free)==address(new_free->next)): new_free->size +=
+new_free->next->size new_free->next = new_free->next->next
+
+6. Done. The free list remains sorted and coalesed.
+
+-----------
+*/
