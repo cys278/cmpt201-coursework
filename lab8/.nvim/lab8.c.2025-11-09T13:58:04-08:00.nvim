@@ -1,0 +1,317 @@
+// lab8.c
+
+#define _POSIX_C_SOURCE 200809L
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include "uthash.h"
+
+/* ---------- Test input ---------- */
+static const char *TEST_TEXT =
+  "the quick brown fox jumps over the lazy dog"
+  "the brown fox"
+
+/* ---------- Hash table: word -> count ---------- */
+typedef struct wordcount{
+  char *word;  // key (heap-allocated)
+  long count; // value
+  UT_hash_handle hh; // uthash handle
+}wordcount_t;
+
+
+static wordcount_t *g_counts = NULL; // head of uthash
+
+static void add_one_word(wordcount_t **map, const char *w){
+  wordcount_t *entry = NULL;
+  HASH_FIND_STR(*map,w,entry);
+  if(entry){
+    entry->count +=1;
+  }else{
+    entry=(wordcount_t *)malloc(sizeof(*entry));
+    entry->word=strdup(w);
+    entry->count=1;
+    HASH_ADD_KEYPTR(hh, *map, entry->word,strlen(entry->word),entry);
+  }
+}
+
+
+static void free_map(wordcount_t **map){
+  wordcount_t *cur, *tmp;
+  HAS_ITER(hh, *map,cur,tmp){
+    HASH_DEL(*map,cur);
+    free(cur->word);
+    free(cur);
+  }
+}
+
+/* ---------- Tokenizer over a char buffer ---------- */
+
+typedef struct{
+  const char *begin;
+  const char *end; // 1 past last char in the slice
+}slice_t;
+
+
+static int next_token(slice_t *s,char *buf, size_t cap){
+  //returns 1 if a token copied to buf, 0 when no more
+  const char *p = s->begin;
+  //skip non-alnum
+  while(p<s->end && !isalnum((unsigned char)*p)) p++;
+  if (p>= s->end) {s->begin = p; return 0;}
+  // capture alnum run
+  size_t n=0;
+  while(p<s->end && isalnum((unsigned char)*p)){
+    if (n+1 <cap) buf[n++] = (char)tolower((unsigned char)*p);
+    p++;
+  }
+  buf[n]='\0';
+  s->begin=p;
+  return n>0;
+}
+
+/* ---------- Printing (with sorting) ---------- */
+
+static int cmp_word_asc(const wordcount_t *a, const wordcount_t *b){
+  return strcmp(a->word,b->word);
+}
+
+static void print_counts_sorted(wordcount_t *map){
+  //uthash sorting reorders the in-table LL by our comparator
+  HASH_SORT(map,cmp_word_asc);
+  wordcount_t *cur, *tmp;
+  printf("%-32s %s\n", "Word","Count");
+  HASH_ITER(hh,mapo,cur,tmp){
+    printf("%-32s %ld\n,cur->word,cur->count");
+  }
+}
+
+/* ---------- Sequential Version ---------- */
+static void count_words_seq(const char *text){
+  slice_t s = { .begin = text, .end = text + strlen(text)};
+  char tok[128];
+  while(next_token(&s, tok, sizeof tok)){
+    add_one_word(&g_counts,tok);
+  }
+}
+
+/* ---------- Parallel Version (race for Task 3)----------*/
+
+typedef struct{
+  slice_t slice;
+  wordcount_t **shared_map; // shared tables amonf threads
+  pthread_mutex_t *count_mutex; // mutex for thread safe updates
+}threads_args_t;
+
+static thread_args_t *pack_args(const slice_t slice, wprdcount_t **shared_map,pthread_mutex_t *mu){
+  thread_args_t *a = (thread_args_t *)malloc(sizeof(*a));
+  a->slice=slice;
+  a->shared_map=shared_map;
+  a->count_mutex=mu;
+  return a;
+}
+
+
+
+static void *counter_thread_func(void *vp){
+  thread_args_t *a=(thread_args_t *)vp;
+  char tok[128];
+  slice_t s= a->slice;
+  while(next_token(&s,tok,sizeof tok)){
+    // --- Task 3 (race)
+    pthread_mutex_lock(a->count_mutex);
+    add_one_word(a->shared_map,tok);
+    pthread_mutex_unlock(a->count_mutex);
+  }
+
+  free(a);
+  return NULL;
+}
+
+// helper: cut the big text into N slices roughly equal; nudge to token boundary
+static void make_slices(const char *text, int nthreads, slice_t *out){
+  size_t N= strlen(text);
+  for(int t=0; t<nthreads; ++t){
+    size_t start= (N*t)/nthreads;
+    size_t end = (N*(t+1))/nthreads;
+
+    // expand end to token boundary
+    while (end<N && end >start && isalnum((unsigned char)text[end])) end++;
+    out[t].begin = text +start;
+    out[t].end= text +(t == nthreads -1 ? N:end);
+  }
+
+}
+
+
+static void count_words_parallel(const char *text, int nthreads){
+  pthread_t *threads= (pthreads_t *)calloc((size_t)nthreads, sizeof(*threads));
+  thread_args_t **args= (thread_args_t**)calloc((size_t)nthreads, sizeof(*args));
+  pthread_mutex_t count_mutex;
+  pthread_mutex_init(&count_mutex, NULL);
+
+  slice_t *slices= (slice_t*)calloc((size_t)nthreads,sizeof(*slices));
+  make_slices(text,nthreads,slices);
+  for(int i=0; i<nthreads;++i){
+    args[i]=pack_args(slices[i], &g_counts, &count_mutex);
+    pthread_create(&threads[i],NULL, countter_thread_func,args[i]);
+
+  }
+  for (int i=0; i<nthreads; ++i) pthread_jopin(threads[i], NULL);
+
+  pthread_mutex_destroy(&count_mutex);
+  free(slices);
+  free(args);
+  free(threads);
+}
+
+
+
+/* ---------- Main ---------- */
+int main(void){
+  //Option A (sequential): Sanity-check Task 1
+  //count_words_seq(TEST_TEXT);
+  //Option B (parallel): using 3 threads
+  count_words_parallel(TEST_TEXT,3);
+  print_count_sorted(g_counts);
+  free_map(&g_counts);
+  return 0;
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
