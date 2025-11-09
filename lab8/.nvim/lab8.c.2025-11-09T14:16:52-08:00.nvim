@@ -12,8 +12,8 @@
 static const char *TEST_TEXT = "the quick brown fox jumps over the lazy dog"
                                "the brown fox";
 
-/* ---------- Hash table: word -> count ---------- */
-typedef struct wordcount {
+    /* ---------- Hash table: word -> count ---------- */
+    typedef struct wordcount {
   char *word;        // key (heap-allocated)
   long count;        // value
   UT_hash_handle hh; // uthash handle
@@ -83,7 +83,7 @@ static void print_counts_sorted(wordcount_t *map) {
   HASH_SORT(map, cmp_word_asc);
   wordcount_t *cur, *tmp;
   printf("%-32s %s\n", "Word", "Count");
-  HASH_ITER(hh, map, cur, tmp) { printf("%-32s %ld\n", cur->word, cur->count); }
+  HASH_ITER(hh, map, cur, tmp) { printf("%-32s %ld\n",cur->word,cur->count); }
 }
 
 /* ---------- Sequential Version ---------- */

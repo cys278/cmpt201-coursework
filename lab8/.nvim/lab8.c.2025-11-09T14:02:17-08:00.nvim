@@ -10,10 +10,10 @@
 
 /* ---------- Test input ---------- */
 static const char *TEST_TEXT = "the quick brown fox jumps over the lazy dog"
-                               "the brown fox";
+                               "the brown fox"
 
-/* ---------- Hash table: word -> count ---------- */
-typedef struct wordcount {
+    /* ---------- Hash table: word -> count ---------- */
+    typedef struct wordcount {
   char *word;        // key (heap-allocated)
   long count;        // value
   UT_hash_handle hh; // uthash handle
@@ -36,7 +36,7 @@ static void add_one_word(wordcount_t **map, const char *w) {
 
 static void free_map(wordcount_t **map) {
   wordcount_t *cur, *tmp;
-  HASH_ITER(hh, *map, cur, tmp) {
+  HAS_ITER(hh, *map, cur, tmp) {
     HASH_DEL(*map, cur);
     free(cur->word);
     free(cur);
@@ -83,7 +83,7 @@ static void print_counts_sorted(wordcount_t *map) {
   HASH_SORT(map, cmp_word_asc);
   wordcount_t *cur, *tmp;
   printf("%-32s %s\n", "Word", "Count");
-  HASH_ITER(hh, map, cur, tmp) { printf("%-32s %ld\n", cur->word, cur->count); }
+  HASH_ITER(hh, mapo, cur, tmp) { printf("%-32s %ld\n,cur->word,cur->count"); }
 }
 
 /* ---------- Sequential Version ---------- */
@@ -101,9 +101,9 @@ typedef struct {
   slice_t slice;
   wordcount_t **shared_map;     // shared tables amonf threads
   pthread_mutex_t *count_mutex; // mutex for thread safe updates
-} thread_args_t;
+} threads_args_t;
 
-static thread_args_t *pack_args(const slice_t slice, wordcount_t **shared_map,
+static thread_args_t *pack_args(const slice_t slice, wprdcount_t **shared_map,
                                 pthread_mutex_t *mu) {
   thread_args_t *a = (thread_args_t *)malloc(sizeof(*a));
   a->slice = slice;
@@ -143,7 +143,7 @@ static void make_slices(const char *text, int nthreads, slice_t *out) {
 }
 
 static void count_words_parallel(const char *text, int nthreads) {
-  pthread_t *threads = (pthread_t *)calloc((size_t)nthreads, sizeof(*threads));
+  pthread_t *threads = (pthreads_t *)calloc((size_t)nthreads, sizeof(*threads));
   thread_args_t **args =
       (thread_args_t **)calloc((size_t)nthreads, sizeof(*args));
   pthread_mutex_t count_mutex;
@@ -153,10 +153,10 @@ static void count_words_parallel(const char *text, int nthreads) {
   make_slices(text, nthreads, slices);
   for (int i = 0; i < nthreads; ++i) {
     args[i] = pack_args(slices[i], &g_counts, &count_mutex);
-    pthread_create(&threads[i], NULL, counter_thread_func, args[i]);
+    pthread_create(&threads[i], NULL, countter_thread_func, args[i]);
   }
   for (int i = 0; i < nthreads; ++i)
-    pthread_join(threads[i], NULL);
+    pthread_jopin(threads[i], NULL);
 
   pthread_mutex_destroy(&count_mutex);
   free(slices);
@@ -170,7 +170,7 @@ int main(void) {
   // count_words_seq(TEST_TEXT);
   // Option B (parallel): using 3 threads
   count_words_parallel(TEST_TEXT, 3);
-  print_counts_sorted(g_counts);
+  print_count_sorted(g_counts);
   free_map(&g_counts);
   return 0;
 }
